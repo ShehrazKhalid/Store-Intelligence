@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       num: 200
     });
 
-    const index = list.findIndex(a => a.appId === appId);
+    const index = list.findIndex((a: any) => a.appId === appId);
     if (index !== -1) {
       return NextResponse.json({ success: true, rank: index + 1, category: genreId });
     } else {

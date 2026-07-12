@@ -95,7 +95,7 @@ export default function TrendsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
               <XAxis dataKey="date" stroke="#94a3b8" tick={{fill: '#94a3b8'}} />
               <YAxis stroke="#94a3b8" tick={{fill: '#94a3b8'}} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={customTooltipStyle} formatter={(value: number) => new Intl.NumberFormat('en-US').format(value)} />
+              <Tooltip contentStyle={customTooltipStyle} formatter={(value: any) => new Intl.NumberFormat('en-US').format(Number(value))} />
               <Legend />
               <Area type="monotone" dataKey="Games" stroke="#ef4444" fillOpacity={1} fill="url(#colorGames)" />
               <Area type="monotone" dataKey="Social" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSocial)" />

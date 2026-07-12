@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { History, TrendingUp } from "lucide-react";
 
 export default function SearchPage() {
+  return (
+    <Suspense fallback={<main className="container"><div className="loading">Loading search...</div></main>}>
+      <SearchContent />
+    </Suspense>
+  );
+}
+
+function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get("q");
   
@@ -112,7 +120,7 @@ export default function SearchPage() {
                   <YAxis stroke="#94a3b8" tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : `${(value/1000).toFixed(0)}k`} />
                   <Tooltip 
                     contentStyle={{backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc'}}
-                    formatter={(value: number) => new Intl.NumberFormat('en-US').format(value)}
+                    formatter={(value: any) => new Intl.NumberFormat('en-US').format(Number(value))}
                   />
                   <Area type="monotone" dataKey="downloads" stroke="#16a34a" fillOpacity={1} fill="url(#colorDownloads)" />
                 </AreaChart>
