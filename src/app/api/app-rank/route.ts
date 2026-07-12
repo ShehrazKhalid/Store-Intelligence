@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     }
 
     const list = await gplay.list({
-      category: genreId,
+      category: genreId as any,
       collection: gplay.collection.TOP_FREE,
       num: 200
     });
