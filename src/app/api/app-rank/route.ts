@@ -17,10 +17,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, rank: null, category: null });
     }
 
-    // @ts-ignore
-    const list = await gplay.list({
+    const list = await (gplay as any).list({
       category: genreId,
-      collection: gplay.collection.TOP_FREE,
+      collection: (gplay as any).collection.TOP_FREE,
       num: 200
     });
 
