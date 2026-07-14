@@ -1,6 +1,64 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+function formatInstalls(num: number | string) {
+  if (!num) return "N/A";
+  
+  let n = typeof num === 'string' ? parseInt(num.toString().replace(/[^0-9]/g, '')) : num;
+  if (isNaN(n) || n === 0) return num.toString();
+
+  if (n >= 1000000000) {
+    let formatted = (n / 1000000000).toFixed(1);
+    return `~${formatted.replace('.0', '')}B`;
+  }
+  if (n >= 1000000) {
+    let formatted = (n / 1000000).toFixed(1);
+    return `~${formatted.replace('.0', '')}M`;
+  }
+  if (n >= 1000) {
+    let formatted = (n / 1000).toFixed(1);
+    return `~${formatted.replace('.0', '')}K`;
+  }
+  
+  return `~${n}`;
+}
+
+function InstallsFetcher({ appId }: { appId: string }) {
+  const [installs, setInstalls] = useState<string>("...");
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    let fetched = false;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !fetched) {
+          fetched = true;
+          fetch(`/api/app-details?appId=${appId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && (data.data.maxInstalls || data.data.installs)) {
+                setInstalls(formatInstalls(data.data.maxInstalls || data.data.installs));
+              } else {
+                setInstalls("N/A");
+              }
+            })
+            .catch(() => setInstalls("N/A"));
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" }
+    );
+
+    observer.observe(ref.current);
+
+    return () => observer.disconnect();
+  }, [appId]);
+
+  return <span ref={ref} style={{color: "#64748b", fontWeight: 500}}>{installs}</span>;
+}
 
 const gameCategories = [
   "All Games", "Action", "Adventure", "Arcade", "Board", "Card", "Casino", "Casual",
@@ -96,6 +154,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
 
   const handleAppTypeChange = (e: any) => {
     const newType = e.target.value;
@@ -119,7 +178,7 @@ export default function CategoriesPage() {
       const gplayCat = categoryMap[catName] || "GAME";
       const gplayCountry = countryCode === "global" ? "us" : countryCode;
       
-      const res = await fetch(`http://localhost:8000/api/live-category?category=${gplayCat}&country=${gplayCountry}`);
+      const res = await fetch(`/api/live-category?category=${gplayCat}&country=${gplayCountry}`);
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -143,6 +202,14 @@ export default function CategoriesPage() {
     if (val < 0) return "▼";
     return "–";
   };
+
+  const displayedTopFree = selectedKeyword 
+    ? data?.topFree?.filter((app: any) => (app?.title || '').toLowerCase().includes(selectedKeyword.toLowerCase()) || (app?.developer || '').toLowerCase().includes(selectedKeyword.toLowerCase()))
+    : data?.topFree;
+
+  const displayedTopNewFree = selectedKeyword 
+    ? data?.topNewFree?.filter((app: any) => (app?.title || '').toLowerCase().includes(selectedKeyword.toLowerCase()) || (app?.developer || '').toLowerCase().includes(selectedKeyword.toLowerCase()))
+    : data?.topNewFree;
 
   return (
     <main className="container" style={{maxWidth: "1800px", padding: "1rem"}}>
@@ -216,25 +283,45 @@ export default function CategoriesPage() {
                   <option>Top Free</option>
                 </select>
               </div>
-              <span style={{fontSize: "0.85rem", color: "#64748b"}}>
-                Ordered by frequency · ▲/▼ = average rank movement over the range
-              </span>
+              <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
+                <span style={{fontSize: "0.85rem", color: "#64748b"}}>
+                  Ordered by frequency · ▲/▼ = average rank movement over the range
+                </span>
+                <button 
+                  onClick={() => setSelectedKeyword(null)} 
+                  style={{padding: "0.3rem 0.8rem", borderRadius: "4px", border: "1px solid #cbd5e1", background: "white", color: "#475569", fontSize: "0.85rem", cursor: "pointer", display: selectedKeyword ? "block" : "none"}}
+                >
+                  Clear Filter
+                </button>
+              </div>
             </div>
+
+            {selectedKeyword && (
+              <div style={{background: "#eff6ff", color: "#60a5fa", padding: "0.5rem 1rem", borderRadius: "4px", marginBottom: "1rem", fontSize: "0.9rem", border: "1px solid #bfdbfe"}}>
+                Filtering Top Free by keyword: "{selectedKeyword}"
+              </div>
+            )}
             
             <div style={{display: "flex", flexWrap: "wrap", gap: "0.5rem"}}>
               {data.keywordCloud?.map((kw: any) => (
-                <div key={kw.word} style={{
-                  padding: "0.4rem 0.8rem", 
-                  borderRadius: "20px", 
-                  background: kw.movement > 0 ? "#ecfdf5" : kw.movement < 0 ? "#fef2f2" : "#f1f5f9",
-                  color: getMovementColor(kw.movement),
-                  fontSize: "0.9rem",
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.3rem"
-                }}>
-                  <span>{getMovementIcon(kw.movement)}</span> {kw.word} <span>{kw.movement > 0 ? `+${kw.movement}` : kw.movement}</span>
+                <div 
+                  key={kw.word}
+                  onClick={() => setSelectedKeyword(selectedKeyword === kw.word ? null : kw.word)}
+                  style={{
+                    padding: "0.4rem 0.8rem", 
+                    borderRadius: "20px", 
+                    background: selectedKeyword === kw.word ? "#4f46e5" : kw.movement > 0 ? "#ecfdf5" : kw.movement < 0 ? "#fef2f2" : "#f1f5f9",
+                    color: selectedKeyword === kw.word ? "#fff" : getMovementColor(kw.movement),
+                    fontSize: "0.9rem",
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    cursor: "pointer",
+                    border: selectedKeyword === kw.word ? "2px solid #3730a3" : "2px solid transparent"
+                  }}
+                >
+                  <span>{getMovementIcon(kw.movement)}</span> {kw.word} {kw.movement !== 0 && <span>{kw.movement > 0 ? `+${kw.movement}` : kw.movement}</span>}
                 </div>
               ))}
             </div>
@@ -245,9 +332,16 @@ export default function CategoriesPage() {
             
             {/* COLUMN 1: TOP FREE */}
             <div style={{background: "white", borderRadius: "8px", padding: "1.5rem", color: "black", minWidth: "380px", flex: 1, display: "flex", flexDirection: "column"}}>
-              <div style={{display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "1rem", marginBottom: "1rem"}}>
-                <h3 style={{margin: 0, fontSize: "1.1rem"}}>Top Free</h3>
-                <span style={{color: "#64748b", fontSize: "0.9rem"}}>{data.topFree?.length || 0} items</span>
+              <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #e2e8f0", paddingBottom: "1rem", marginBottom: "1rem"}}>
+                <div>
+                  <h3 style={{margin: 0, fontSize: "1.1rem"}}>Top Free</h3>
+                  {selectedKeyword && (
+                    <div style={{background: "#eff6ff", color: "#4f46e5", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.75rem", display: "inline-block", marginTop: "0.5rem"}}>
+                      Filtered by: {selectedKeyword}
+                    </div>
+                  )}
+                </div>
+                <span style={{color: "#64748b", fontSize: "0.9rem"}}>{displayedTopFree?.length || 0} items</span>
               </div>
               <div style={{display: "flex", color: "#64748b", fontSize: "0.8rem", fontWeight: "bold", marginBottom: "1rem"}}>
                 <div style={{width: "50px"}}>RANK</div>
@@ -255,7 +349,7 @@ export default function CategoriesPage() {
                 <div style={{width: "80px", textAlign: "right"}}>INSTALLS</div>
               </div>
               <div style={{display: "flex", flexDirection: "column", gap: "1rem", overflowY: "auto", maxHeight: "600px", paddingRight: "0.5rem"}}>
-                {data.topFree?.map((app: any, idx: number) => (
+                {displayedTopFree?.map((app: any, idx: number) => (
                   <div key={app.appId} style={{display: "flex", gap: "0.5rem", alignItems: "center"}}>
                     <div style={{width: "40px", fontSize: "0.9rem", fontWeight: "bold", display: "flex", flexDirection: "column"}}>
                       <span>#{idx + 1}</span>
@@ -268,8 +362,8 @@ export default function CategoriesPage() {
                       <div style={{fontWeight: "bold", color: "#4f46e5", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.title}</div>
                       <div style={{color: "#64748b", fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.developer} +</div>
                     </div>
-                    <div style={{width: "70px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
-                      {app.installsText}
+                    <div style={{width: "80px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
+                      <InstallsFetcher appId={app.appId} />
                     </div>
                   </div>
                 ))}
@@ -278,9 +372,16 @@ export default function CategoriesPage() {
 
             {/* COLUMN 2: TOP NEW FREE */}
             <div style={{background: "white", borderRadius: "8px", padding: "1.5rem", color: "black", minWidth: "380px", flex: 1, display: "flex", flexDirection: "column"}}>
-              <div style={{display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "1rem", marginBottom: "1rem"}}>
-                <h3 style={{margin: 0, fontSize: "1.1rem"}}>Top New Free</h3>
-                <span style={{color: "#64748b", fontSize: "0.9rem"}}>{data.topNewFree?.length || 0} items</span>
+              <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #e2e8f0", paddingBottom: "1rem", marginBottom: "1rem"}}>
+                <div>
+                  <h3 style={{margin: 0, fontSize: "1.1rem"}}>Top New Free</h3>
+                  {selectedKeyword && (
+                    <div style={{background: "#eff6ff", color: "#4f46e5", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.75rem", display: "inline-block", marginTop: "0.5rem"}}>
+                      Filtered by: {selectedKeyword}
+                    </div>
+                  )}
+                </div>
+                <span style={{color: "#64748b", fontSize: "0.9rem"}}>{displayedTopNewFree?.length || 0} items</span>
               </div>
               <div style={{display: "flex", color: "#64748b", fontSize: "0.8rem", fontWeight: "bold", marginBottom: "1rem"}}>
                 <div style={{width: "50px"}}>RANK</div>
@@ -288,7 +389,7 @@ export default function CategoriesPage() {
                 <div style={{width: "80px", textAlign: "right"}}>INSTALLS</div>
               </div>
               <div style={{display: "flex", flexDirection: "column", gap: "1rem", overflowY: "auto", maxHeight: "600px", paddingRight: "0.5rem"}}>
-                {data.topNewFree?.map((app: any, idx: number) => (
+                {displayedTopNewFree?.map((app: any, idx: number) => (
                   <div key={app.appId} style={{display: "flex", gap: "0.5rem", alignItems: "center"}}>
                     <div style={{width: "40px", fontSize: "0.9rem", fontWeight: "bold", display: "flex", flexDirection: "column"}}>
                       <span>#{idx + 1}</span>
@@ -299,8 +400,8 @@ export default function CategoriesPage() {
                       <div style={{fontWeight: "bold", color: "#4f46e5", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.title}</div>
                       <div style={{color: "#64748b", fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.developer} +</div>
                     </div>
-                    <div style={{width: "70px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
-                      {app.installsText}
+                    <div style={{width: "80px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
+                      <InstallsFetcher appId={app.appId} />
                     </div>
                   </div>
                 ))}
@@ -319,6 +420,12 @@ export default function CategoriesPage() {
                 <div style={{width: "80px", textAlign: "right"}}>INSTALLS</div>
               </div>
               <div style={{display: "flex", flexDirection: "column", gap: "1rem", overflowY: "auto", maxHeight: "600px", paddingRight: "0.5rem"}}>
+                {data.biggestMovers?.length === 0 && (
+                  <div style={{display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "150px", color: "#94a3b8", textAlign: "center"}}>
+                    <div style={{fontWeight: "bold", marginBottom: "0.5rem", color: "#64748b"}}>Not enough historical data</div>
+                    <div style={{fontSize: "0.85rem"}}>Biggest movers will be available after the daily tracker collects more data (likely tomorrow).</div>
+                  </div>
+                )}
                 {data.biggestMovers?.map((app: any, idx: number) => (
                   <div key={app.appId} style={{display: "flex", gap: "0.5rem", alignItems: "center"}}>
                     <div style={{width: "40px", fontSize: "0.9rem", fontWeight: "bold", display: "flex", flexDirection: "column"}}>
@@ -332,8 +439,8 @@ export default function CategoriesPage() {
                       <div style={{fontWeight: "bold", color: "#4f46e5", fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.title}</div>
                       <div style={{color: "#64748b", fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.developer} +</div>
                     </div>
-                    <div style={{width: "70px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
-                      {app.installsText}
+                    <div style={{width: "80px", textAlign: "right", color: "#64748b", fontSize: "0.85rem"}}>
+                      <InstallsFetcher appId={app.appId} />
                     </div>
                   </div>
                 ))}

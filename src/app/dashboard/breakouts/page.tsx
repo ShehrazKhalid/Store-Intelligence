@@ -22,7 +22,7 @@ export default function BreakoutsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/breakouts")
+    fetch(`/api/breakouts`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {

@@ -1,16 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function TopNavbar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const router = useRouter();
 
-  const toggleDropdown = (menu: string) => {
-    if (activeDropdown === menu) {
-      setActiveDropdown(null);
-    } else {
-      setActiveDropdown(menu);
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsSearching(true);
+      fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setSearchResults(data.data.slice(0, 8)); // Show top 8 in dropdown
+            setShowSearchDropdown(true);
+          }
+          setIsSearching(false);
+        })
+        .catch(() => setIsSearching(false));
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e?: React.KeyboardEvent) => {
+    if (e && e.key !== "Enter") return;
+    if (searchQuery.trim()) {
+      setShowSearchDropdown(false);
+      router.push(`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -32,9 +62,8 @@ export default function TopNavbar() {
           <nav style={{display: "flex", alignItems: "center", gap: "1.5rem", fontSize: "0.95rem", color: "#475569", fontWeight: 500}}>
             
             {/* Workspace Dropdown */}
-            <div style={{position: "relative"}}>
+            <div style={{position: "relative"}} onMouseEnter={() => setActiveDropdown("workspace")} onMouseLeave={() => setActiveDropdown(null)}>
               <button 
-                onClick={() => toggleDropdown("workspace")}
                 style={{background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", color: "#0f172a", fontWeight: activeDropdown === "workspace" ? 700 : 500, padding: "0.5rem"}}
               >
                 Workspace <span style={{fontSize: "0.7rem"}}>▼</span>
@@ -59,9 +88,8 @@ export default function TopNavbar() {
             </div>
 
             {/* AI Agents Dropdown */}
-            <div style={{position: "relative"}}>
+            <div style={{position: "relative"}} onMouseEnter={() => setActiveDropdown("ai_agents")} onMouseLeave={() => setActiveDropdown(null)}>
               <button 
-                onClick={() => toggleDropdown("ai_agents")}
                 style={{background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", color: "#0f172a", fontWeight: activeDropdown === "ai_agents" ? 700 : 500, padding: "0.5rem"}}
               >
                 🔥 AI Agents <span style={{fontSize: "0.7rem"}}>▼</span>
@@ -89,9 +117,8 @@ export default function TopNavbar() {
             </div>
 
             {/* Discover Dropdown */}
-            <div style={{position: "relative"}}>
+            <div style={{position: "relative"}} onMouseEnter={() => setActiveDropdown("discover")} onMouseLeave={() => setActiveDropdown(null)}>
               <button 
-                onClick={() => toggleDropdown("discover")}
                 style={{background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", color: "#0f172a", fontWeight: activeDropdown === "discover" ? 700 : 500, padding: "0.5rem"}}
               >
                 Discover <span style={{fontSize: "0.7rem"}}>▼</span>
@@ -114,9 +141,8 @@ export default function TopNavbar() {
             </div>
 
             {/* ASO Dropdown */}
-            <div style={{position: "relative"}}>
+            <div style={{position: "relative"}} onMouseEnter={() => setActiveDropdown("aso")} onMouseLeave={() => setActiveDropdown(null)}>
               <button 
-                onClick={() => toggleDropdown("aso")}
                 style={{background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", color: "#0f172a", fontWeight: activeDropdown === "aso" ? 700 : 500, padding: "0.5rem"}}
               >
                 ASO <span style={{fontSize: "0.7rem"}}>▼</span>
@@ -155,40 +181,100 @@ export default function TopNavbar() {
             <input 
               type="text" 
               placeholder="Search games, apps, publishers..." 
-              style={{padding: "0.5rem 1rem", borderRadius: "20px", border: "1px solid #e2e8f0", width: "250px", fontSize: "0.85rem", background: "#f8fafc"}}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchSubmit}
+              onFocus={() => { if(searchResults.length > 0) setShowSearchDropdown(true); }}
+              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
+              style={{
+                padding: "0.5rem 1rem", 
+                borderRadius: "20px", 
+                border: "1px solid #e2e8f0", 
+                width: "300px", 
+                fontSize: "0.85rem", 
+                background: "#f8fafc",
+                outline: "none"
+              }}
             />
+            {showSearchDropdown && (
+              <div style={{
+                position: "absolute", 
+                top: "100%", 
+                right: 0, 
+                width: "450px", 
+                background: "white", 
+                border: "1px solid #e2e8f0", 
+                borderRadius: "8px", 
+                boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", 
+                marginTop: "0.5rem", 
+                overflow: "hidden",
+                zIndex: 100
+              }}>
+                {isSearching ? (
+                  <div style={{padding: "1rem", textAlign: "center", color: "#64748b", fontSize: "0.9rem"}}>Searching...</div>
+                ) : searchResults.length > 0 ? (
+                  <>
+                    <div style={{maxHeight: "400px", overflowY: "auto"}}>
+                      {searchResults.map((app) => (
+                        <div 
+                          key={app.appId} 
+                          onClick={() => {
+                            setSearchQuery("");
+                            setShowSearchDropdown(false);
+                          }}
+                          style={{
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: "1rem", 
+                            padding: "0.75rem 1rem", 
+                            borderBottom: "1px solid #f1f5f9",
+                            cursor: "pointer",
+                            textDecoration: "none",
+                            color: "inherit"
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                        >
+                          <img src={app.icon} style={{width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover"}} />
+                          <div style={{flex: 1, minWidth: 0}}>
+                            <div style={{fontWeight: 600, fontSize: "0.9rem", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.title}</div>
+                            <div style={{fontSize: "0.75rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{app.developer}</div>
+                          </div>
+                          <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
+                            <span style={{fontSize: "1.2rem"}}>▶️</span>
+                            <span style={{fontSize: "0.7rem", background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#64748b"}}>App</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div 
+                      onClick={() => handleSearchSubmit()}
+                      style={{
+                        padding: "0.75rem", 
+                        textAlign: "center", 
+                        background: "#f8fafc", 
+                        borderTop: "1px solid #e2e8f0", 
+                        color: "#4f46e5", 
+                        fontSize: "0.85rem", 
+                        fontWeight: 600, 
+                        cursor: "pointer"
+                      }}
+                    >
+                      See all results for "{searchQuery}" →
+                    </div>
+                  </>
+                ) : (
+                  <div style={{padding: "1rem", textAlign: "center", color: "#64748b", fontSize: "0.9rem"}}>No results found</div>
+                )}
+              </div>
+            )}
           </div>
           
           <button style={{background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem", color: "#0f172a", fontWeight: 500}}>
-            Dabobot <span style={{fontSize: "0.7rem"}}>▼</span>
+            Login
           </button>
         </div>
       </div>
-
-      {/* Green Promo Banner */}
-      <div style={{background: "#10b981", color: "white", padding: "0.5rem 1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem", fontWeight: 500}}>
-        <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
-          <span>🧩</span> Get instant installs, charts & publisher data on any Google Play page — StoreSignal Chrome Extension is free!
-        </div>
-        <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-          <button style={{background: "white", color: "#10b981", border: "none", padding: "0.3rem 0.8rem", borderRadius: "4px", fontWeight: "bold", cursor: "pointer"}}>Install Free →</button>
-          <button style={{background: "transparent", border: "none", color: "white", cursor: "pointer"}}>✕</button>
-        </div>
-      </div>
-
-      <style jsx>{`
-        .dropdown-item {
-          display: block;
-          padding: 0.5rem;
-          color: #334155;
-          text-decoration: none;
-          font-size: 0.9rem;
-          border-radius: 4px;
-        }
-        .dropdown-item:hover {
-          background: #f8fafc;
-        }
-      `}</style>
     </div>
   );
 }
